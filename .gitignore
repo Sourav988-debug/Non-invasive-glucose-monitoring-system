@@ -1,0 +1,32 @@
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# Data and secrets
+.env
+.env.*
+*.csv
+*.parquet
+*.h5
+*.hdf5
+*.pkl
+*.joblib
+
+# Build artifacts
+build/
+dist/
+node_modules/
+
+# Local generated files
+*.log
