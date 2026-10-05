@@ -22,9 +22,7 @@ The repository intentionally documents the engineering architecture and validati
 
 ## What the project does
 
-The system investigates whether useful glucose-related information can be extracted from weak optical variations in tissue and mapped to an estimated glucose value through a trained regression model.
-
-The overall concept is:
+The system investigates whether useful glucose-related information can be extracted from weak optical variations in tissue and mapped to an **estimated glucose** value through a trained regression model.
 
 ```text
 NIR emitters
@@ -50,15 +48,13 @@ Ridge Regression inference
 Estimated glucose + quality / uncertainty information
 ```
 
-The reference research underlying the initial data-analytic approach uses a 940 nm NIR emitter, optical detection, preprocessing, feature engineering and regression, with specific attention to skin colour, ambient light and sensor pressure. The primary paper is openly available and is included in `research/papers/`.
-
 ## Current architecture
 
 ### Optical sensing
 
 - Primary NIR channel: **940 nm**
 - Extended architecture: **940 nm + 1300 nm**
-- Silicon PIN photodiodes for optical detection
+- Silicon PIN photodiodes
 - Fingertip transmission / reflective sensing concepts
 - PPG-style AC/DC signal analysis
 
@@ -67,9 +63,9 @@ The reference research underlying the initial data-analytic approach uses a 940 
 - Low-noise transimpedance amplification
 - Active high-pass / low-pass filtering
 - Ambient-light / baseline compensation concepts
-- Dedicated ADC rather than relying only on the microcontroller ADC
+- Dedicated external ADC
 
-### Embedded hardware design
+### Embedded hardware
 
 - ESP32-S3-WROOM-1
 - ADS1115 16-bit ADC
@@ -80,78 +76,48 @@ The reference research underlying the initial data-analytic approach uses a 940 
 - MPU6050 IMU for motion-artifact gating
 - LiPo power architecture
 
-The PCB design is documented in `hardware/kicad/` and the available layout preview is shown below.
-
-![PCB preview](media/pcb-preview.png)
+See [`docs/hardware-architecture.md`](docs/hardware-architecture.md) and [`hardware/kicad/README.md`](hardware/kicad/README.md).
 
 ## Machine-learning pipeline
 
-The ML component is deliberately documented as a **pipeline and methodology**, not as a public training-code dump.
-
-The intended flow is:
+The ML component is documented as a **pipeline and methodology**, not as a public training-code dump.
 
 1. Acquire raw optical/PPG signals.
 2. Perform dark/reference correction and signal-quality checks.
 3. Remove baseline drift and out-of-band noise.
-4. Extract stable optical and physiological features such as AC amplitude, DC level, AC/DC ratio and heart-rate-related features.
+4. Extract optical and physiological features such as AC amplitude, DC level, AC/DC ratio and pulse-related features.
 5. Apply calibration/context handling where justified by the training data.
-6. Pass the feature vector to a regularized regression model.
-7. Produce an **estimated glucose** value rather than presenting it as a direct measurement.
-8. Attach signal-quality and uncertainty information to the estimate.
+6. Pass the feature vector to Ridge Regression.
+7. Produce an **estimated glucose** value.
+8. Attach signal-quality and uncertainty information.
 
-**Primary model:** Ridge Regression.
+### Why Ridge Regression?
 
-Ridge was selected because optical features can be correlated, while L2 regularization helps stabilize the regression coefficients. The public documentation explains the model and validation design without exposing the underlying training implementation.
+Optical features can be correlated. Ridge Regression adds L2 regularization to stabilize the coefficient estimates while retaining an interpretable, lightweight model suitable for embedded inference.
 
-![ML monitoring interface](media/software-dashboard.jpg)
+The reference glucose value is the target label `y`, not an input feature.
 
-The screenshot above is a software-interface demonstration of the research pipeline. Displayed values are software/demo outputs and should not be interpreted as clinical measurements.
-
-See [`docs/ml-pipeline.md`](docs/ml-pipeline.md) for the detailed methodology.
+See [`docs/ml-pipeline.md`](docs/ml-pipeline.md).
 
 ## Engineering advancements
 
-### 1. On-device ML inference
+1. **On-device ML inference**  
+   Lightweight regression inference is designed to move toward the embedded device rather than requiring permanent cloud/desktop execution.
 
-The project architecture moves lightweight regression inference toward the embedded device rather than requiring a permanently connected desktop/cloud system.
+2. **Dual-wavelength optical architecture**  
+   A secondary 1300 nm channel extends the original 940 nm sensing concept for wavelength-differential investigation. Improved accuracy is not assumed without experimental evidence.
 
-### 2. Dual-wavelength optical architecture
+3. **Compact SMT PCB architecture**  
+   The optical AFE, ADC, MCU and peripherals were translated into a compact two-layer SMT-oriented design.
 
-A secondary 1300 nm optical channel was added to the original 940 nm concept to investigate wavelength-differential sensing. This is an engineering extension; improved accuracy must be established experimentally rather than assumed.
+4. **Local display and wireless telemetry**  
+   SSD1306 provides local diagnostics/readout, while the ESP32-S3 provides a BLE-capable telemetry path.
 
-### 3. Compact SMT PCB architecture
+5. **Motion-artifact rejection**  
+   MPU6050 motion information can be used to reject or downgrade corrupted signal windows.
 
-The earlier benchtop sensing concept was translated into a compact two-layer SMT-oriented PCB architecture integrating the optical AFE, ADC, MCU and peripherals.
-
-### 4. Local display and wireless telemetry
-
-An SSD1306 OLED provides local diagnostic/readout capability, while the ESP32-S3 architecture provides a path for BLE telemetry.
-
-### 5. Motion-artifact rejection
-
-An MPU6050 IMU is used as a signal-integrity gate. Windows contaminated by excessive movement can be rejected or downgraded instead of being blindly passed to the regression model.
-
-### 6. Hardware-independent calibration / analysis workflow
-
-A separate analysis concept allows signal-processing and calibration logic to be tested independently of the final physical enclosure and PCB.
-
-## Hardware design
-
-The current design is documented as an engineering prototype rather than a production medical device.
-
-| Subsystem | Current design |
-|---|---|
-| MCU | ESP32-S3-WROOM-1 |
-| Optical detector | VBPW34S silicon PIN photodiodes |
-| NIR sources | 940 nm + 1300 nm |
-| AFE | AD8628-based TIA/filter stages |
-| ADC | ADS1115, 16-bit |
-| Motion sensing | MPU6050 |
-| Display | SSD1306 OLED |
-| Power | LiPo-based architecture |
-| PCB | Compact 2-layer SMT design |
-
-See [`hardware/bom.md`](hardware/bom.md) and [`hardware/kicad/README.md`](hardware/kicad/README.md).
+6. **Hardware-independent calibration / analysis**  
+   Signal-processing and calibration logic can be tested independently of the final physical enclosure and PCB.
 
 ## Validation approach
 
@@ -166,9 +132,9 @@ The methodology considers:
 - Clarke Error Grid where clinically appropriate
 - signal-quality rejection
 - subject-aware evaluation to reduce leakage between training and evaluation subjects
-- uncertainty / prediction intervals where the calibration data supports them
+- uncertainty / prediction intervals where supported by the calibration data
 
-The public repository does **not** publish the numerical validation results.
+**Numerical validation results are intentionally not published in this repository.**
 
 See [`docs/validation.md`](docs/validation.md).
 
@@ -178,11 +144,21 @@ The primary reference is:
 
 > S. V. K. R. Rajeswari and P. Vijayakumar, “Development of sensor system and data analytic framework for non-invasive blood glucose prediction,” *Scientific Reports*, vol. 14, Art. 9206, 2024. DOI: 10.1038/s41598-024-59744-7.
 
-The article is open access under CC BY 4.0 and is included in this repository with attribution.
+Official paper: https://doi.org/10.1038/s41598-024-59744-7
 
-Recent literature also supports the project's directions in PPG-based estimation, embedded/TinyML inference and multi-wavelength optical sensing. A 2025 Scientific Reports study investigated PPG glucose estimation with embedded TinyML deployment, while another 2025 Scientific Reports study presented an open-source multi-wavelength NIR/visible system.
+The article is open access under CC BY 4.0.
 
-See [`research/README.md`](research/README.md) for the curated literature list and [`research/references.bib`](research/references.bib) for citation metadata.
+Recent research relevant to this project includes PPG/TinyML deployment, open-source multi-wavelength optical sensing, participant-independent wearable evaluation and personalization.
+
+See [`research/README.md`](research/README.md) and [`research/references.bib`](research/references.bib).
+
+## Data policy
+
+No raw participant or clinical dataset is included.
+
+The repository documents the expected data structure and ML methodology without publishing sensitive human-subject measurements.
+
+See [`data/README.md`](data/README.md).
 
 ## Repository structure
 
@@ -191,9 +167,9 @@ See [`research/README.md`](research/README.md) for the curated literature list a
 ├── README.md
 ├── CITATION.cff
 ├── LICENSE
+├── .gitignore
 ├── docs/
 │   ├── personal-technical-report.md
-│   ├── personal-technical-report.pdf
 │   ├── ml-pipeline.md
 │   ├── hardware-architecture.md
 │   ├── validation.md
@@ -202,44 +178,40 @@ See [`research/README.md`](research/README.md) for the curated literature list a
 ├── hardware/
 │   ├── bom.md
 │   └── kicad/
-│       ├── README.md
-│       └── pcb-preview.pdf
+│       └── README.md
 ├── research/
 │   ├── README.md
 │   ├── references.bib
 │   └── papers/
-│       └── rajeswari_vijayakumar_2024.pdf
-├── data/
-│   └── README.md
-└── media/
-    ├── pcb-preview.png
-    ├── phase2-architecture.png
-    └── software-dashboard.jpg
+│       └── README.md
+└── data/
+    └── README.md
 ```
 
-## Data policy
-
-No raw participant or clinical dataset is included in this repository. The repository documents the expected data structure and analysis methodology without publishing sensitive human-subject measurements.
-
-See [`data/README.md`](data/README.md).
-
-## Reproducibility and scope
+## Scope and limitations
 
 This repository is intended to make the **engineering reasoning, architecture, research basis and validation methodology** inspectable. It is not presented as a turnkey medical-device implementation.
 
-The current public scope deliberately excludes the full ML training code and raw participant data. The model methodology, features, validation design and engineering decisions are documented instead.
+The current public scope deliberately excludes the full ML training code and raw participant data.
 
-## Safety and scientific limitations
+NIR/PPG signals can be affected by skin pigmentation, tissue properties, ambient light, pressure, placement, motion, temperature, perfusion and electronic noise. A corrupted sensor signal is not evidence that a person's glucose actually changed.
 
-Non-invasive glucose estimation is a difficult measurement problem. Optical signals are influenced by tissue composition, water absorption, pigmentation, pressure, sensor placement, ambient light, motion, temperature and other physiological variables. A corrupted sensor signal is not evidence that a person's glucose actually changed.
+The model output should be called **estimated glucose**, not measured glucose.
 
-This project therefore treats signal quality and uncertainty as first-class outputs and does not recommend using the prototype for medical decisions.
+## Project phase
 
-See [`docs/safety-and-limitations.md`](docs/safety-and-limitations.md).
+**Prototype completed → testing and validation phase**
 
-## License
+Current engineering focus:
 
-Original project documentation is released under the license in [`LICENSE`](LICENSE). Third-party papers and other referenced material retain their respective licenses.
+- hardware bring-up
+- PCB-level verification
+- optical characterization
+- signal-quality and motion rejection
+- embedded inference verification
+- independent subject-aware validation
+
+See [`docs/project-status.md`](docs/project-status.md).
 
 ## Citation
 
